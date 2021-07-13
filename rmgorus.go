@@ -10,6 +10,7 @@ import (
 type hooker struct {
 	c          *mgo.Collection
 	mgoUrl     string
+	authdb     string
 	db         string
 	collection string
 	user       string
@@ -54,7 +55,7 @@ func NewHookerWithAuthDb(mgoUrl, authdb, db, collection, user, pass string) (*ho
 		return nil, fmt.Errorf("Failed to login to mongodb: %v", err)
 	}
 
-	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, db: db, collection: collection, user: user, pass: pass}, nil
+	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, authdb: authdb, db: db, collection: collection, user: user, pass: pass}, nil
 }
 
 func (h *hooker) Fire(entry *logrus.Entry) error {
