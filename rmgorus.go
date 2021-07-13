@@ -8,8 +8,12 @@ import (
 )
 
 type hooker struct {
-	c              *mgo.Collection
-	mongoErrNotify chan bool
+	c          *mgo.Collection
+	mgoUrl     string
+	db         string
+	collection string
+	user       string
+	pass       string
 }
 
 type M bson.M
@@ -20,7 +24,7 @@ func NewHooker(mgoUrl, db, collection string) (*hooker, error) {
 		return nil, err
 	}
 
-	return &hooker{c: session.DB(db).C(collection)}, nil
+	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, db: db, collection: collection, user: user, pass: pass}, nil
 }
 
 func NewHookerFromCollection(collection *mgo.Collection) *hooker {
@@ -37,7 +41,7 @@ func NewHookerWithAuth(mgoUrl, db, collection, user, pass string) (*hooker, erro
 		return nil, fmt.Errorf("Failed to login to mongodb: %v", err)
 	}
 
-	return &hooker{c: session.DB(db).C(collection)}, nil
+	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, db: db, collection: collection, user: user, pass: pass}, nil
 }
 
 func NewHookerWithAuthDb(mgoUrl, authdb, db, collection, user, pass string) (*hooker, error) {
@@ -50,7 +54,7 @@ func NewHookerWithAuthDb(mgoUrl, authdb, db, collection, user, pass string) (*ho
 		return nil, fmt.Errorf("Failed to login to mongodb: %v", err)
 	}
 
-	return &hooker{c: session.DB(db).C(collection)}, nil
+	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, db: db, collection: collection, user: user, pass: pass}, nil
 }
 
 func (h *hooker) Fire(entry *logrus.Entry) error {
@@ -68,9 +72,14 @@ func (h *hooker) Fire(entry *logrus.Entry) error {
 	}
 
 	mgoErr := h.c.Insert(M(data))
-
 	if mgoErr != nil {
-		h.mongoErrNotify <- true
+		session, _ := mgo.Dial(mgoUrl)
+		if err := session.DB(authdb).Login(user, pass); err != nil {
+			return fmt.Errorf("Failed to login to mongodb: %v", err)
+		}
+		h.c = session.DB(db).C(collection)
+		fmt.Println("重连mongo之后重试插入该条日志")
+		h.Fire(entry)
 		return fmt.Errorf("Failed to send log entry to mongodb: %v", mgoErr)
 	}
 
@@ -79,8 +88,4 @@ func (h *hooker) Fire(entry *logrus.Entry) error {
 
 func (h *hooker) Levels() []logrus.Level {
 	return logrus.AllLevels
-}
-
-func (h *hooker) MongoErrNotify() chan bool {
-	return h.mongoErrNotify
 }
