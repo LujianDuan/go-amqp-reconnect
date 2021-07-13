@@ -24,7 +24,7 @@ func NewHooker(mgoUrl, db, collection string) (*hooker, error) {
 		return nil, err
 	}
 
-	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, db: db, collection: collection, user: user, pass: pass}, nil
+	return &hooker{c: session.DB(db).C(collection), mgoUrl: mgoUrl, db: db, collection: collection}, nil
 }
 
 func NewHookerFromCollection(collection *mgo.Collection) *hooker {
@@ -73,11 +73,11 @@ func (h *hooker) Fire(entry *logrus.Entry) error {
 
 	mgoErr := h.c.Insert(M(data))
 	if mgoErr != nil {
-		session, _ := mgo.Dial(mgoUrl)
-		if err := session.DB(authdb).Login(user, pass); err != nil {
+		session, _ := mgo.Dial(h.mgoUrl)
+		if err := session.DB(h.authdb).Login(h.user, h.pass); err != nil {
 			return fmt.Errorf("Failed to login to mongodb: %v", err)
 		}
-		h.c = session.DB(db).C(collection)
+		h.c = session.DB(h.db).C(h.collection)
 		fmt.Println("重连mongo之后重试插入该条日志")
 		h.Fire(entry)
 		return fmt.Errorf("Failed to send log entry to mongodb: %v", mgoErr)
