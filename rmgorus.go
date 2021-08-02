@@ -5,6 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"time"
 )
 
 type hooker struct {
@@ -59,9 +60,15 @@ func NewHookerWithAuthDb(mgoUrl, authdb, db, collection, user, pass string) (*ho
 }
 
 func (h *hooker) Fire(entry *logrus.Entry) error {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err == nil {
+		time.Local = location
+	}
 	data := make(logrus.Fields)
 	data["Level"] = entry.Level.String()
 	data["Time"] = entry.Time
+	data["TimeStrLocal"] = entry.Time.Local().String()
+	data["TimeStamp"] = entry.Time.UnixNano() / 1e6
 	data["Message"] = entry.Message
 
 	for k, v := range entry.Data {
